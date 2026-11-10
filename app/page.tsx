@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase";
+import CarteWrapper from "@/components/CarteWrapper";
 
 type Logement = {
   id: number;
@@ -9,16 +10,36 @@ type Logement = {
   charges_incluses: boolean;
   meuble: boolean;
   quartier: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 async function ListeLogements() {
   const { data, error } = await supabase
     .from("logements")
-    .select("id, titre, type, prix_mensuel, charges_incluses, meuble, quartier")
+    .select(
+      "id, titre, type, prix_mensuel, charges_incluses, meuble, quartier, latitude, longitude"
+    )
     .eq("statut", "publie")
     .order("prix_mensuel", { ascending: true });
 
   const logements = (data ?? []) as Logement[];
+
+  const pointsCarte = logements.flatMap((l) =>
+    l.latitude !== null && l.longitude !== null
+      ? [
+          {
+            id: l.id,
+            titre: l.titre,
+            type: l.type,
+            prix_mensuel: l.prix_mensuel,
+            quartier: l.quartier,
+            latitude: l.latitude,
+            longitude: l.longitude,
+          },
+        ]
+      : []
+  );
 
   return (
     <>
@@ -27,6 +48,10 @@ async function ListeLogements() {
           Erreur : {error.message}
         </p>
       )}
+
+      <div className="mb-6">
+        <CarteWrapper logements={pointsCarte} />
+      </div>
 
       <ul className="space-y-3">
         {logements.map((l) => (
