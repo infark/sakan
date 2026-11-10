@@ -1,8 +1,9 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
+import { useEffect, useMemo } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 
 export type LogementCarte = {
   id: number;
@@ -22,11 +23,26 @@ function iconePrix(prix: number) {
   });
 }
 
+function AjusterVue({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (points.length === 0) return;
+    map.fitBounds(L.latLngBounds(points), { padding: [50, 50], maxZoom: 15 });
+  }, [map, points]);
+  return null;
+}
+
 export default function CarteLogements({
   logements,
 }: {
   logements: LogementCarte[];
 }) {
+  const points = useMemo(
+    () =>
+      logements.map((l) => [l.latitude, l.longitude] as [number, number]),
+    [logements]
+  );
+
   return (
     <MapContainer
       center={[36.8065, 10.1815]}
@@ -38,6 +54,7 @@ export default function CarteLogements({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <AjusterVue points={points} />
       {logements.map((l) => (
         <Marker
           key={l.id}
