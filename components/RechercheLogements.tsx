@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import CarteWrapper from "./CarteWrapper";
+import { urlPhoto } from "@/lib/photos";
 
 export type Logement = {
   id: number;
@@ -13,6 +15,7 @@ export type Logement = {
   quartier: string;
   latitude: number | null;
   longitude: number | null;
+  photos: string[] | null;
 };
 
 const TYPES = [
@@ -142,18 +145,39 @@ export default function RechercheLogements({
 
       <ul className="space-y-3">
         {filtres.map((l) => (
-          <li key={l.id} className="rounded-lg border p-4">
-            <div className="flex items-baseline justify-between gap-4">
-              <h2 className="font-semibold">{l.titre}</h2>
-              <span className="whitespace-nowrap font-bold">
-                {l.prix_mensuel} DT/mois
-              </span>
+          <li key={l.id} className="flex gap-4 rounded-lg border p-4">
+            {l.photos && l.photos.length > 0 ? (
+              <img
+                src={urlPhoto(l.photos[0])}
+                alt={l.titre}
+                className="h-24 w-32 flex-shrink-0 rounded object-cover"
+              />
+            ) : (
+              <div className="flex h-24 w-32 flex-shrink-0 items-center justify-center rounded bg-gray-800 text-xs text-gray-500">
+                Pas de photo
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="font-semibold">
+                  <Link
+                    href={`/logement/${l.id}`}
+                    className="hover:underline"
+                  >
+                    {l.titre}
+                  </Link>
+                </h2>
+                <span className="whitespace-nowrap font-bold">
+                  {l.prix_mensuel} DT/mois
+                </span>
+              </div>
+              <p className="text-sm text-gray-500">
+                {l.quartier} · {l.type}
+                {l.meuble ? " · meublé" : ""}
+                {l.charges_incluses ? " · charges incluses" : ""}
+              </p>
             </div>
-            <p className="text-sm text-gray-500">
-              {l.quartier} · {l.type}
-              {l.meuble ? " · meublé" : ""}
-              {l.charges_incluses ? " · charges incluses" : ""}
-            </p>
           </li>
         ))}
       </ul>

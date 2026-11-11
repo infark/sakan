@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { compresserPhoto } from "@/lib/compresser";
 
 const QUARTIERS: Record<string, [number, number]> = {
   "Centre-ville": [36.799, 10.18],
@@ -26,6 +27,12 @@ const TYPES = [
   { value: "colocation", label: "Colocation" },
 ];
 
+const FORMATS_ACCEPTES = ["image/jpeg", "image/png", "image/webp"];
+
+const MAX_PHOTOS = 5;
+const MAX_OCTETS = 15 * 1024 * 1024;
+const BUCKET = "logements-photos";
+
 export default function Publier() {
   const [connecte, setConnecte] = useState<boolean | null>(null);
   const [titre, setTitre] = useState("");
@@ -36,6 +43,7 @@ export default function Publier() {
   const [meuble, setMeuble] = useState(false);
   const [charges, setCharges] = useState(false);
   const [tel, setTel] = useState("");
+  const [fichiers, setFichiers] = useState<File[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoye, setEnvoye] = useState(false);
   const [chargement, setChargement] = useState(false);
@@ -46,10 +54,71 @@ export default function Publier() {
     });
   }, []);
 
+  function choisirPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    setErreur(null);
+    const choisis = Array.from(e.target.files ?? []);
+
+    if (choisis.length > MAX_PHOTOS) {
+      setErreur(`Maximum ${MAX_PHOTOS} photos.`);
+      e.target.value = "";
+      return;
+    }
+    if (choisis.some((f) => !FORMATS_ACCEPTES.includes(f.type))) {
+      setErreur("Formats acceptés : JPG, PNG ou WebP.");
+      e.target.value = "";
+      return;
+    }
+    if (choisis.some((f) => f.size > MAX_OCTETS)) {
+      setErreur("Chaque photo doit faire 15 Mo maximum.");
+      e.target.value = "";
+      return;
+    }
+    setFichiers(choisis);
+  }
+
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
     setErreur(null);
     setChargement(true);
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) {
+      setErreur("Session expirée, reconnecte-toi.");
+      setChargement(false);
+      return;
+    }
+
+    const chemins: string[] = [];
+    for (const f of fichiers) {
+      let blob: Blob;
+      try {
+        blob = await compresserPhoto(f);
+      } catch {
+        if (chemins.length > 0) {
+          await supabase.storage.from(BUCKET).remove(chemins);
+        }
+        setErreur("Impossible de traiter une des photos.");
+        setChargement(false);
+        return;
+      }
+
+      const ext = blob.type === "image/webp" ? "webp" : "jpg";
+      const chemin = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error: errUpload } = await supabase.storage
+        .from(BUCKET)
+        .upload(chemin, blob, { contentType: blob.type });
+
+      if (errUpload) {
+        if (chemins.length > 0) {
+          await supabase.storage.from(BUCKET).remove(chemins);
+        }
+        setErreur("Envoi d'une photo impossible : " + errUpload.message);
+        setChargement(false);
+        return;
+      }
+      chemins.push(chemin);
+    }
 
     const [lat, lng] = QUARTIERS[quartier];
     const decalage = () => (Math.random() - 0.5) * 0.004;
@@ -65,10 +134,14 @@ export default function Publier() {
       latitude: lat + decalage(),
       longitude: lng + decalage(),
       contact_tel: tel.trim() || null,
+      photos: chemins,
       statut: "en_attente",
     });
 
     if (error) {
+      if (chemins.length > 0) {
+        await supabase.storage.from(BUCKET).remove(chemins);
+      }
       setErreur(error.message);
     } else {
       setEnvoye(true);
@@ -77,7 +150,9 @@ export default function Publier() {
   }
 
   if (connecte === null) {
-    return <main className="mx-auto max-w-xl p-6 text-gray-500">Chargement…</main>;
+    return (
+      <main className="mx-auto max-w-xl p-6 text-gray-500">Chargement…</main>
+    );
   }
 
   if (!connecte) {
@@ -111,8 +186,7 @@ export default function Publier() {
     );
   }
 
-  const champ =
-    "w-full rounded border border-gray-600 bg-transparent p-3";
+  const champ = "w-full rounded border border-gray-600 bg-transparent p-3";
 
   return (
     <main className="mx-auto max-w-xl p-6">
@@ -191,6 +265,25 @@ export default function Publier() {
             />
             Charges incluses
           </label>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Photos (jusqu&apos;à {MAX_PHOTOS}, 15 Mo chacune)
+          </label>
+          <input
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp"
+            onChange={choisirPhotos}
+            className="w-full text-sm"
+          />
+          {fichiers.length > 0 && (
+            <p className="mt-1 text-sm text-gray-500">
+              {fichiers.length} photo{fichiers.length > 1 ? "s" : ""}{" "}
+              sélectionnée{fichiers.length > 1 ? "s" : ""}
+            </p>
+          )}
         </div>
 
         <input

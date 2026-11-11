@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { urlPhoto } from "@/lib/photos";
 import FormulaireAvis from "@/components/FormulaireAvis";
 
 async function Detail({ params }: { params: Promise<{ id: string }> }) {
@@ -12,13 +13,15 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   const { data: logement } = await supabase
     .from("logements")
     .select(
-      "id, titre, description, type, prix_mensuel, charges_incluses, meuble, quartier"
+      "id, titre, description, type, prix_mensuel, charges_incluses, meuble, quartier, photos"
     )
     .eq("id", logementId)
     .eq("statut", "publie")
     .maybeSingle();
 
   if (!logement) notFound();
+
+  const photos = (logement.photos ?? []) as string[];
 
   const { data: avisData } = await supabase
     .from("avis")
@@ -59,6 +62,19 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
         {logement.meuble ? " · meublé" : ""}
         {logement.charges_incluses ? " · charges incluses" : ""}
       </p>
+
+      {photos.length > 0 && (
+        <div className="mt-6 flex gap-3 overflow-x-auto">
+          {photos.map((p) => (
+            <img
+              key={p}
+              src={urlPhoto(p)}
+              alt={logement.titre}
+              className="h-64 w-auto flex-shrink-0 rounded-lg object-cover"
+            />
+          ))}
+        </div>
+      )}
 
       {logement.description && (
         <p className="mt-6 whitespace-pre-line">{logement.description}</p>

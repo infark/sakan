@@ -8,7 +8,7 @@ async function ChargerLogements() {
   const { data, error } = await supabase
     .from("logements")
     .select(
-      "id, titre, type, prix_mensuel, charges_incluses, meuble, quartier, latitude, longitude"
+      "id, titre, type, prix_mensuel, charges_incluses, meuble, quartier, latitude, longitude, photos"
     )
     .eq("statut", "publie")
     .order("prix_mensuel", { ascending: true });
