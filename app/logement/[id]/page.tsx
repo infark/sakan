@@ -1,0 +1,110 @@
+import { Suspense } from "react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import FormulaireAvis from "@/components/FormulaireAvis";
+
+async function Detail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const logementId = Number(id);
+  if (!Number.isInteger(logementId)) notFound();
+
+  const { data: logement } = await supabase
+    .from("logements")
+    .select(
+      "id, titre, description, type, prix_mensuel, charges_incluses, meuble, quartier"
+    )
+    .eq("id", logementId)
+    .eq("statut", "publie")
+    .maybeSingle();
+
+  if (!logement) notFound();
+
+  const { data: avisData } = await supabase
+    .from("avis")
+    .select("id, auteur_id, note, commentaire, created_at")
+    .eq("logement_id", logementId)
+    .order("created_at", { ascending: false });
+
+  const avis = avisData ?? [];
+
+  const pseudos = new Map<string, string>();
+  const auteurIds = [...new Set(avis.map((a) => a.auteur_id))];
+  if (auteurIds.length > 0) {
+    const { data: profils } = await supabase
+      .from("profils")
+      .select("id, pseudo")
+      .in("id", auteurIds);
+    profils?.forEach((p) => pseudos.set(p.id, p.pseudo));
+  }
+
+  const moyenne =
+    avis.length > 0 ? avis.reduce((s, a) => s + a.note, 0) / avis.length : null;
+
+  return (
+    <>
+      <Link href="/" className="text-sm text-gray-500 underline">
+        ← Retour aux logements
+      </Link>
+
+      <div className="mt-4 flex items-baseline justify-between gap-4">
+        <h1 className="text-3xl font-bold">{logement.titre}</h1>
+        <span className="whitespace-nowrap text-xl font-bold">
+          {logement.prix_mensuel} DT/mois
+        </span>
+      </div>
+
+      <p className="mt-1 text-gray-500">
+        {logement.quartier} · {logement.type}
+        {logement.meuble ? " · meublé" : ""}
+        {logement.charges_incluses ? " · charges incluses" : ""}
+      </p>
+
+      {logement.description && (
+        <p className="mt-6 whitespace-pre-line">{logement.description}</p>
+      )}
+
+      <section className="mt-10">
+        <h2 className="mb-1 text-2xl font-bold">Avis des étudiants</h2>
+        <p className="mb-4 text-gray-500">
+          {moyenne !== null
+            ? `${moyenne.toFixed(1)} / 5 · ${avis.length} avis`
+            : "Aucun avis pour le moment."}
+        </p>
+
+        <ul className="mb-8 space-y-3">
+          {avis.map((a) => (
+            <li key={a.id} className="rounded-lg border p-4">
+              <div className="flex items-baseline justify-between">
+                <span className="font-semibold">
+                  {pseudos.get(a.auteur_id) ?? "etudiant"}
+                </span>
+                <span>{"★".repeat(a.note) + "☆".repeat(5 - a.note)}</span>
+              </div>
+              {a.commentaire && <p className="mt-2">{a.commentaire}</p>}
+              <p className="mt-2 text-xs text-gray-500">
+                {new Date(a.created_at).toLocaleDateString("fr-FR")}
+              </p>
+            </li>
+          ))}
+        </ul>
+
+        <FormulaireAvis logementId={logementId} />
+      </section>
+    </>
+  );
+}
+
+export default function PageLogement({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <main className="mx-auto max-w-3xl p-6">
+      <Suspense fallback={<p className="text-gray-500">Chargement…</p>}>
+        <Detail params={params} />
+      </Suspense>
+    </main>
+  );
+}

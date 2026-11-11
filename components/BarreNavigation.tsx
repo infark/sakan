@@ -20,17 +20,26 @@ export default function BarreNavigation() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  return (
+  return (  
     <nav className="mx-auto flex max-w-3xl items-center justify-between p-6 pb-0">
       <Link href="/" className="text-xl font-bold">
         Sakan
       </Link>
 
-      {pret && (
-        <div className="flex items-center gap-4 text-sm">
-          {user ? (
+      <div className="flex items-center gap-4 text-sm">
+        <Link
+          href="/publier"
+          className="rounded bg-emerald-600 px-3 py-1 font-semibold text-white"
+        >
+          Publier
+        </Link>
+
+        {pret &&
+          (user ? (
             <>
-              <span className="text-gray-500">{user.email}</span>
+              <span className="hidden text-gray-500 sm:inline">
+                {user.email}
+              </span>
               <button
                 onClick={() => supabase.auth.signOut()}
                 className="underline"
@@ -42,9 +51,8 @@ export default function BarreNavigation() {
             <Link href="/connexion" className="underline">
               Se connecter
             </Link>
-          )}
-        </div>
-      )}
+          ))}
+      </div>
     </nav>
   );
 }
