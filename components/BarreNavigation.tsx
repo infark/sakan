@@ -56,9 +56,14 @@ export default function BarreNavigation() {
                 Mes annonces
               </Link>
               {admin && (
-                <Link href="/admin" className="underline">
-                  Modération
-                </Link>
+                <>
+                  <Link href="/admin" className="underline">
+                    Modération
+                  </Link>
+                  <Link href="/admin/signalements" className="underline">
+                    Signalements
+                  </Link>
+                </>
               )}
               <span className="hidden text-gray-500 sm:inline">
                 {user.email}

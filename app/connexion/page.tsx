@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -93,16 +94,27 @@ export default function Connexion() {
         </button>
       </form>
 
-      <button
-        onClick={() =>
-          setMode(mode === "connexion" ? "inscription" : "connexion")
-        }
-        className="mt-4 text-sm text-gray-500 underline"
-      >
-        {mode === "connexion"
-          ? "Pas de compte ? Inscris-toi"
-          : "Déjà un compte ? Connecte-toi"}
-      </button>
+      {mode === "connexion" && (
+        <Link
+          href="/mot-de-passe-oublie"
+          className="mt-4 inline-block text-sm text-gray-500 underline"
+        >
+          Mot de passe oublié ?
+        </Link>
+      )}
+
+      <div>
+        <button
+          onClick={() =>
+            setMode(mode === "connexion" ? "inscription" : "connexion")
+          }
+          className="mt-4 text-sm text-gray-500 underline"
+        >
+          {mode === "connexion"
+            ? "Pas de compte ? Inscris-toi"
+            : "Déjà un compte ? Connecte-toi"}
+        </button>
+      </div>
     </main>
   );
 }

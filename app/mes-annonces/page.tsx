@@ -11,13 +11,23 @@ type Annonce = {
   quartier: string;
   statut: "en_attente" | "publie" | "archive";
   created_at: string;
+  updated_at: string;
 };
+
+const JOURS_VALIDITE = 60;
 
 const LIBELLES = {
   en_attente: { texte: "En attente de validation", couleur: "text-orange-500" },
   publie: { texte: "Publiée", couleur: "text-emerald-500" },
   archive: { texte: "Retirée", couleur: "text-gray-500" },
 };
+
+function joursRestants(misAJour: string) {
+  const ecoule = Math.floor(
+    (Date.now() - new Date(misAJour).getTime()) / 86400000
+  );
+  return Math.max(0, JOURS_VALIDITE - ecoule);
+}
 
 export default function MesAnnonces() {
   const [connecte, setConnecte] = useState<boolean | null>(null);
@@ -27,7 +37,7 @@ export default function MesAnnonces() {
   const charger = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from("logements")
-      .select("id, titre, prix_mensuel, quartier, statut, created_at")
+      .select("id, titre, prix_mensuel, quartier, statut, created_at, updated_at")
       .eq("proprietaire_id", userId)
       .order("created_at", { ascending: false });
 
@@ -44,6 +54,7 @@ export default function MesAnnonces() {
   }, [charger]);
 
   async function retirer(id: number) {
+    if (!window.confirm("Retirer cette annonce du site ?")) return;
     setErreur(null);
     const { data, error } = await supabase
       .from("logements")
@@ -57,6 +68,20 @@ export default function MesAnnonces() {
     }
     setAnnonces((liste) =>
       liste.map((a) => (a.id === id ? { ...a, statut: "archive" } : a))
+    );
+  }
+
+  async function renouveler(id: number) {
+    setErreur(null);
+    const { error } = await supabase.rpc("renouveler_annonce", { p_id: id });
+    if (error) {
+      setErreur(error.message);
+      return;
+    }
+    setAnnonces((liste) =>
+      liste.map((a) =>
+        a.id === id ? { ...a, updated_at: new Date().toISOString() } : a
+      )
     );
   }
 
@@ -92,41 +117,65 @@ export default function MesAnnonces() {
       )}
 
       <ul className="space-y-3">
-        {annonces.map((a) => (
-          <li key={a.id} className="rounded-lg border p-4">
-            <div className="flex items-baseline justify-between gap-4">
-              <h2 className="font-semibold">
-                {a.statut === "publie" ? (
-                  <Link
-                    href={`/logement/${a.id}`}
-                    className="hover:underline"
-                  >
-                    {a.titre}
-                  </Link>
-                ) : (
-                  a.titre
-                )}
-              </h2>
-              <span className="whitespace-nowrap font-bold">
-                {a.prix_mensuel} DT/mois
-              </span>
-            </div>
-            <p className="text-sm text-gray-500">{a.quartier}</p>
-            <div className="mt-2 flex items-center justify-between">
-              <span className={`text-sm font-medium ${LIBELLES[a.statut].couleur}`}>
+        {annonces.map((a) => {
+          const jours = joursRestants(a.updated_at);
+          return (
+            <li key={a.id} className="rounded-lg border p-4">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="font-semibold">
+                  {a.statut === "publie" ? (
+                    <Link
+                      href={`/logement/${a.id}`}
+                      className="hover:underline"
+                    >
+                      {a.titre}
+                    </Link>
+                  ) : (
+                    a.titre
+                  )}
+                </h2>
+                <span className="whitespace-nowrap font-bold">
+                  {a.prix_mensuel} DT/mois
+                </span>
+              </div>
+              <p className="text-sm text-gray-500">{a.quartier}</p>
+
+              <p className={`mt-2 text-sm font-medium ${LIBELLES[a.statut].couleur}`}>
                 {LIBELLES[a.statut].texte}
-              </span>
-              {a.statut !== "archive" && (
-                <button
-                  onClick={() => retirer(a.id)}
-                  className="text-sm text-red-500 underline"
-                >
-                  Retirer l&apos;annonce
-                </button>
+              </p>
+
+              {a.statut === "publie" && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {jours > 0
+                    ? `Visible encore ${jours} jour${jours > 1 ? "s" : ""}`
+                    : "Expirée : renouvelle-la pour la remettre en ligne"}
+                </p>
               )}
-            </div>
-          </li>
-        ))}
+
+              {a.statut !== "archive" && (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                  <Link href={`/modifier/${a.id}`} className="underline">
+                    Modifier
+                  </Link>
+                  {a.statut === "publie" && (
+                    <button
+                      onClick={() => renouveler(a.id)}
+                      className="underline"
+                    >
+                      Renouveler
+                    </button>
+                  )}
+                  <button
+                    onClick={() => retirer(a.id)}
+                    className="text-red-500 underline"
+                  >
+                    Marquer comme louée / retirer
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {annonces.length === 0 && (

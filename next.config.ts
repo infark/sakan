@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["10.25.0.158"],
   /* config options here */
   experimental: {
     agentFeedback: true,
