@@ -4,6 +4,16 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { urlPhoto } from "@/lib/photos";
 import FormulaireAvis from "@/components/FormulaireAvis";
+import ContactLogement from "@/components/ContactLogement";
+
+const LIBELLES_TYPES: Record<string, string> = {
+  chambre: "chambre",
+  studio: "studio",
+  s1: "S+1",
+  s2: "S+2",
+  s3: "S+3",
+  colocation: "colocation",
+};
 
 async function Detail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,6 +33,45 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
 
   const photos = (logement.photos ?? []) as string[];
 
+  const { data: statsData } = await supabase.rpc("stats_quartier", {
+    p_quartier: logement.quartier,
+    p_type: logement.type,
+  });
+  const stats = statsData?.[0] ?? null;
+
+  let comparaison: {
+    moyenne: number;
+    nb: number;
+    min: number;
+    max: number;
+    verdict: string;
+    couleur: string;
+  } | null = null;
+
+  if (stats && Number(stats.nb) >= 3) {
+    const moyenne = Number(stats.prix_moyen);
+    const ecart = Math.round(
+      ((logement.prix_mensuel - moyenne) / moyenne) * 100
+    );
+    let verdict = "Dans la moyenne du quartier";
+    let couleur = "text-gray-400";
+    if (ecart <= -10) {
+      verdict = `${Math.abs(ecart)} % moins cher que la moyenne`;
+      couleur = "text-emerald-500";
+    } else if (ecart >= 10) {
+      verdict = `${ecart} % plus cher que la moyenne`;
+      couleur = "text-orange-500";
+    }
+    comparaison = {
+      moyenne,
+      nb: Number(stats.nb),
+      min: Number(stats.prix_min),
+      max: Number(stats.prix_max),
+      verdict,
+      couleur,
+    };
+  }
+
   const { data: avisData } = await supabase
     .from("avis")
     .select("id, auteur_id, note, commentaire, created_at")
@@ -41,7 +90,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
     profils?.forEach((p) => pseudos.set(p.id, p.pseudo));
   }
 
-  const moyenne =
+  const moyenneAvis =
     avis.length > 0 ? avis.reduce((s, a) => s + a.note, 0) / avis.length : null;
 
   return (
@@ -63,6 +112,22 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
         {logement.charges_incluses ? " · charges incluses" : ""}
       </p>
 
+      <ContactLogement logementId={logementId} />
+
+      {comparaison && (
+        <div className="mt-4 rounded-lg border p-4 text-sm">
+          <p className={`font-semibold ${comparaison.couleur}`}>
+            {comparaison.verdict}
+          </p>
+          <p className="mt-1 text-gray-500">
+            Prix moyen pour {LIBELLES_TYPES[logement.type] ?? logement.type} à{" "}
+            {logement.quartier} : {comparaison.moyenne} DT/mois (
+            {comparaison.nb} annonces, de {comparaison.min} à {comparaison.max}{" "}
+            DT)
+          </p>
+        </div>
+      )}
+
       {photos.length > 0 && (
         <div className="mt-6 flex gap-3 overflow-x-auto">
           {photos.map((p) => (
@@ -83,8 +148,8 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
       <section className="mt-10">
         <h2 className="mb-1 text-2xl font-bold">Avis des étudiants</h2>
         <p className="mb-4 text-gray-500">
-          {moyenne !== null
-            ? `${moyenne.toFixed(1)} / 5 · ${avis.length} avis`
+          {moyenneAvis !== null
+            ? `${moyenneAvis.toFixed(1)} / 5 · ${avis.length} avis`
             : "Aucun avis pour le moment."}
         </p>
 

@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import CarteWrapper from "./CarteWrapper";
 import { urlPhoto } from "@/lib/photos";
+import { FACULTES } from "@/lib/facultes";
+import { distanceKm } from "@/lib/distance";
 
 export type Logement = {
   id: number;
@@ -17,6 +19,8 @@ export type Logement = {
   longitude: number | null;
   photos: string[] | null;
 };
+
+type LogementAvecDistance = Logement & { distance: number | null };
 
 const TYPES = [
   { value: "tous", label: "Tous les types" },
@@ -37,18 +41,47 @@ export default function RechercheLogements({
   const [type, setType] = useState("tous");
   const [meubleSeulement, setMeubleSeulement] = useState(false);
   const [chargesSeulement, setChargesSeulement] = useState(false);
+  const [faculteId, setFaculteId] = useState("aucune");
+  const [distanceMax, setDistanceMax] = useState(10);
 
-  const filtres = useMemo(
-    () =>
-      logements.filter(
-        (l) =>
-          l.prix_mensuel <= budgetMax &&
-          (type === "tous" || l.type === type) &&
-          (!meubleSeulement || l.meuble) &&
-          (!chargesSeulement || l.charges_incluses)
-      ),
-    [logements, budgetMax, type, meubleSeulement, chargesSeulement]
-  );
+  const faculte = FACULTES.find((f) => f.id === faculteId) ?? null;
+
+  const filtres = useMemo(() => {
+    const liste: LogementAvecDistance[] = logements.map((l) => ({
+      ...l,
+      distance:
+        faculte && l.latitude !== null && l.longitude !== null
+          ? distanceKm(
+              faculte.latitude,
+              faculte.longitude,
+              l.latitude,
+              l.longitude
+            )
+          : null,
+    }));
+
+    const resultat = liste.filter(
+      (l) =>
+        l.prix_mensuel <= budgetMax &&
+        (type === "tous" || l.type === type) &&
+        (!meubleSeulement || l.meuble) &&
+        (!chargesSeulement || l.charges_incluses) &&
+        (!faculte || (l.distance !== null && l.distance <= distanceMax))
+    );
+
+    if (faculte) {
+      resultat.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+    }
+    return resultat;
+  }, [
+    logements,
+    budgetMax,
+    type,
+    meubleSeulement,
+    chargesSeulement,
+    faculte,
+    distanceMax,
+  ]);
 
   const pointsCarte = useMemo(
     () =>
@@ -75,6 +108,8 @@ export default function RechercheLogements({
     setType("tous");
     setMeubleSeulement(false);
     setChargesSeulement(false);
+    setFaculteId("aucune");
+    setDistanceMax(10);
   }
 
   return (
@@ -94,6 +129,41 @@ export default function RechercheLogements({
             className="w-full"
           />
         </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">Ma faculté</label>
+          <select
+            value={faculteId}
+            onChange={(e) => setFaculteId(e.target.value)}
+            className="w-full rounded border border-gray-600 bg-transparent p-2"
+          >
+            <option value="aucune" className="text-black">
+              Pas de faculté choisie
+            </option>
+            {FACULTES.map((f) => (
+              <option key={f.id} value={f.id} className="text-black">
+                {f.nom}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {faculte && (
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Distance max : {distanceMax} km
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={20}
+              step={1}
+              value={distanceMax}
+              onChange={(e) => setDistanceMax(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-4">
           <select
@@ -141,6 +211,7 @@ export default function RechercheLogements({
 
       <p className="mb-3 text-sm text-gray-500">
         {filtres.length} logement{filtres.length > 1 ? "s" : ""}
+        {faculte ? " · triés du plus proche au plus loin" : ""}
       </p>
 
       <ul className="space-y-3">
@@ -177,6 +248,12 @@ export default function RechercheLogements({
                 {l.meuble ? " · meublé" : ""}
                 {l.charges_incluses ? " · charges incluses" : ""}
               </p>
+              {faculte && l.distance !== null && (
+                <p className="mt-1 text-sm text-emerald-500">
+                  ~{l.distance.toFixed(1).replace(".", ",")} km de{" "}
+                  {faculte.nom}
+                </p>
+              )}
             </div>
           </li>
         ))}
